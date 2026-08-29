@@ -8,6 +8,8 @@ import sys
 import time
 from pathlib import Path
 
+from policy import check_patch_policy
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -62,8 +64,33 @@ def run_pytest(
         }
 
 
-def evaluate_case(case_id: str) -> dict:
-    repo = ROOT / "benchmark" / "cases" / case_id / "repo"
+def evaluate_case(
+    case_id: str,
+    workspace: Path | None = None,
+) -> dict:
+    canonical_repo = (
+        ROOT
+        / "benchmark"
+        / "cases"
+        / case_id
+        / "repo"
+    )
+
+    if not canonical_repo.exists():
+        raise FileNotFoundError(
+            f"Unknown benchmark case: {case_id}"
+        )
+
+    repo = (
+        workspace.resolve()
+        if workspace is not None
+        else canonical_repo
+    )
+
+    if not repo.exists():
+        raise FileNotFoundError(
+            f"Workspace does not exist: {repo}"
+        )
 
     visible_tests = repo / "tests"
 
@@ -75,11 +102,6 @@ def evaluate_case(case_id: str) -> dict:
         / case_id
     )
 
-    if not repo.exists():
-        raise FileNotFoundError(
-            f"Unknown benchmark case: {case_id}"
-        )
-
     visible = run_pytest(
         cwd=repo,
         test_path=visible_tests,
@@ -90,20 +112,34 @@ def evaluate_case(case_id: str) -> dict:
         test_path=hidden_tests,
     )
 
+    policy = check_patch_policy(
+        canonical_repo=canonical_repo,
+        workspace_repo=repo,
+    )
+
+    timeout_passed = (
+        not visible["timed_out"]
+        and not hidden["timed_out"]
+    )
+
     success = (
         visible["passed"]
         and hidden["passed"]
-        and not visible["timed_out"]
-        and not hidden["timed_out"]
+        and policy["passed"]
+        and timeout_passed
     )
 
     return {
         "case_id": case_id,
+        "workspace": str(repo),
         "success": success,
         "gates": {
             "visible_tests": visible["passed"],
             "hidden_acceptance": hidden["passed"],
+            "patch_policy": policy["passed"],
+            "timeout": timeout_passed,
         },
+        "policy": policy,
         "visible": visible,
         "hidden": hidden,
     }
@@ -118,13 +154,22 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--workspace",
+        type=Path,
+        required=False,
+    )
+
+    parser.add_argument(
         "--out",
         required=False,
     )
 
     args = parser.parse_args()
 
-    result = evaluate_case(args.case)
+    result = evaluate_case(
+        case_id=args.case,
+        workspace=args.workspace,
+    )
 
     text = json.dumps(
         result,
