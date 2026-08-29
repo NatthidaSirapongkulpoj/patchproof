@@ -1,0 +1,34 @@
+{
+  "case_id": "PP-06",
+  "workspace": "D:\\patchproof_project_selection_benchmark_design\\.patchproof\\runs\\PP-06-manual-baseline-94ba2732\\repo",
+  "success": false,
+  "gates": {
+    "visible_tests": false,
+    "hidden_acceptance": false,
+    "patch_policy": true,
+    "timeout": true
+  },
+  "policy": {
+    "passed": true,
+    "changed_files": [
+      "app/main.py"
+    ],
+    "forbidden_files": []
+  },
+  "visible": {
+    "passed": false,
+    "exit_code": 2,
+    "timed_out": false,
+    "duration_seconds": 4.914756800018949,
+    "stdout": "\n=================================== ERRORS ====================================\n_ ERROR collecting .patchproof/runs/PP-06-manual-baseline-94ba2732/repo/tests/test_visible.py _\n..\\..\\..\\..\\.venv\\Lib\\site-packages\\_pytest\\python.py:508: in importtestmodule\n    mod = import_path(\n..\\..\\..\\..\\.venv\\Lib\\site-packages\\_pytest\\pathlib.py:596: in import_path\n    importlib.import_module(module_name)\nC:\\Users\\Hanan\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\importlib\\__init__.py:90: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<frozen importlib._bootstrap>:1387: in _gcd_import\n    ???\n<frozen importlib._bootstrap>:1360: in _find_and_load\n    ???\n<frozen importlib._bootstrap>:1331: in _find_and_load_unlocked\n    ???\n<frozen importlib._bootstrap>:935: in _load_unlocked\n    ???\n..\\..\\..\\..\\.venv\\Lib\\site-packages\\_pytest\\assertion\\rewrite.py:188: in exec_module\n    exec(co, module.__dict__)\n..\\..\\..\\..\\benchmark\\cases\\PP-06\\repo\\tests\\test_visible.py:3: in <module>\n    from app.main import app\nE     File \"D:\\patchproof_project_selection_benchmark_design\\.patchproof\\runs\\PP-06-manual-baseline-94ba2732\\repo\\app\\main.py\", line 13\nE       return get_user(user_id)\nE                               ^\nE   IndentationError: unindent does not match any outer indentation level\n=========================== short test summary info ===========================\nERROR tests\\test_visible.py\n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n1 error in 2.43s\n",
+    "stderr": ""
+  },
+  "hidden": {
+    "passed": false,
+    "exit_code": 2,
+    "timed_out": false,
+    "duration_seconds": 4.98507610001252,
+    "stdout": "\n=================================== ERRORS ====================================\n______ ERROR collecting benchmark/evaluator/oracles/PP-06/test_hidden.py ______\n..\\..\\..\\..\\.venv\\Lib\\site-packages\\_pytest\\python.py:508: in importtestmodule\n    mod = import_path(\n..\\..\\..\\..\\.venv\\Lib\\site-packages\\_pytest\\pathlib.py:596: in import_path\n    importlib.import_module(module_name)\nC:\\Users\\Hanan\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\importlib\\__init__.py:90: in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n<frozen importlib._bootstrap>:1387: in _gcd_import\n    ???\n<frozen importlib._bootstrap>:1360: in _find_and_load\n    ???\n<frozen importlib._bootstrap>:1331: in _find_and_load_unlocked\n    ???\n<frozen importlib._bootstrap>:935: in _load_unlocked\n    ???\n..\\..\\..\\..\\.venv\\Lib\\site-packages\\_pytest\\assertion\\rewrite.py:188: in exec_module\n    exec(co, module.__dict__)\n..\\..\\..\\..\\benchmark\\evaluator\\oracles\\PP-06\\test_hidden.py:3: in <module>\n    from app.main import app\nE     File \"D:\\patchproof_project_selection_benchmark_design\\.patchproof\\runs\\PP-06-manual-baseline-94ba2732\\repo\\app\\main.py\", line 13\nE       return get_user(user_id)\nE                               ^\nE   IndentationError: unindent does not match any outer indentation level\n=========================== short test summary info ===========================\nERROR ..\\..\\..\\..\\benchmark\\evaluator\\oracles\\PP-06\\test_hidden.py\n!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n1 error in 2.71s\n",
+    "stderr": ""
+  }
+}

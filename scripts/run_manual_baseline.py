@@ -97,6 +97,23 @@ def read_multiline_action() -> str:
     return "\n".join(lines).strip()
 
 
+def write_run_result(
+    workspace,
+    result: dict,
+) -> None:
+    run_file = workspace.root / "run.json"
+
+    run_file.write_text(
+        json.dumps(
+            result,
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def run_manual_baseline(case_id: str) -> dict:
     run_id = (
         f"{case_id}-manual-baseline-"
@@ -223,6 +240,7 @@ def run_manual_baseline(case_id: str) -> dict:
                     "summary": summary,
                     "tool_actions": tool_actions,
                     "wall_time_seconds": elapsed,
+                    "status": "finished",
                 },
             )
 
@@ -238,15 +256,9 @@ def run_manual_baseline(case_id: str) -> dict:
                 "transport": "human-relay-with-ack",
             }
 
-            run_file = workspace.root / "run.json"
-            run_file.write_text(
-                json.dumps(
-                    result,
-                    indent=2,
-                    ensure_ascii=False,
-                )
-                + "\n",
-                encoding="utf-8",
+            write_run_result(
+                workspace,
+                result,
             )
 
             print("\n" + "=" * 72)
@@ -306,19 +318,47 @@ def run_manual_baseline(case_id: str) -> dict:
         )
 
     elapsed = time.perf_counter() - started
+    summary = "Maximum tool-action budget reached"
 
     trace.record(
         "final_result",
         {
-            "summary": "Maximum tool-action budget reached",
+            "summary": summary,
             "tool_actions": tool_actions,
             "wall_time_seconds": elapsed,
+            "status": "action_limit",
         },
     )
 
-    raise RuntimeError(
-        f"Maximum tool-action budget reached: {max_tool_actions}"
+    result = {
+        "case_id": case_id,
+        "run_id": run_id,
+        "workspace": str(workspace.repo),
+        "trace": str(trace_path),
+        "status": "action_limit",
+        "tool_actions": tool_actions,
+        "wall_time_seconds": elapsed,
+        "summary": summary,
+        "transport": "human-relay-with-ack",
+    }
+
+    write_run_result(
+        workspace,
+        result,
     )
+
+    print("\n" + "=" * 72)
+    print("MANUAL BASELINE ENDED AT ACTION LIMIT")
+    print("=" * 72)
+    print(
+        json.dumps(
+            result,
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
+
+    return result
 
 
 def main() -> None:

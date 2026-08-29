@@ -1,0 +1,12 @@
+{
+  "case_id": "PP-06",
+  "run_id": "PP-06-manual-baseline-94ba2732",
+  "official": true,
+  "success": false,
+  "visible_tests": false,
+  "hidden_acceptance": false,
+  "patch_policy": true,
+  "timeout": true,
+  "tool_actions": 16,
+  "failure_mode": "Agent introduced an indentation error while attempting to map NotFoundError to HTTP 404. It exhausted the 16-action budget before restoring a syntactically valid implementation. Both visible and hidden tests failed during collection."
+}
