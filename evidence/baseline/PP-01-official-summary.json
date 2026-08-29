@@ -1,0 +1,13 @@
+{
+  "case_id": "PP-01",
+  "run_id": "PP-01-manual-baseline-2af07058",
+  "official": true,
+  "success": false,
+  "visible_tests": true,
+  "hidden_acceptance": false,
+  "patch_policy": true,
+  "timeout": true,
+  "tool_actions": 8,
+  "wall_time_seconds": 386.84362259999034,
+  "failure_mode": "Agent changed the import but failed to apply the intended quantity validation. Multiple exact replacement attempts failed, whole-file write was invalid JSON, visible tests still passed, and the agent incorrectly declared success."
+}
