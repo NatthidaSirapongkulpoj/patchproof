@@ -7,7 +7,10 @@ from patchproof.tools.files import (
     list_files,
     read_file,
 )
-from patchproof.tools.patch import write_file
+from patchproof.tools.patch import (
+    replace_text,
+    write_file,
+)
 from patchproof.tools.search import search_text
 from patchproof.tools.shell import run_command
 
@@ -41,6 +44,14 @@ def execute_action(
             repository_root,
             action["path"],
             action["content"],
+        )
+
+    if kind == "replace_text":
+        return replace_text(
+            repository_root,
+            action["path"],
+            action["old"],
+            action["new"],
         )
 
     if kind == "run_command":

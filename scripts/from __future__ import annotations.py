@@ -18,29 +18,6 @@ from patchproof.workspace import prepare_workspace
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def confirm_relay(
-    trace: TraceRecorder,
-    checkpoint_type: str,
-) -> None:
-    while True:
-        confirmation = input(
-            "\nAfter you have pasted the material into the "
-            "agent session, type ACK: "
-        ).strip()
-
-        if confirmation == "ACK":
-            trace.record(
-                "human_checkpoint",
-                {
-                    "type": checkpoint_type,
-                    "confirmed": True,
-                },
-            )
-            return
-
-        print("Please type exactly: ACK")
-
-
 def print_agent_packet(
     system_prompt: str,
     issue_text: str,
@@ -59,7 +36,6 @@ def print_agent_packet(
             "list_files",
             "read_file",
             "search_text",
-            "replace_text",
             "write_file",
             "run_command",
             "finish",
@@ -74,7 +50,7 @@ def print_agent_packet(
     print(f"Workspace: {workspace_repo}")
     print(
         "\nPaste the packet above into a NEW agent session that has "
-        "never seen the hidden evaluator or benchmark solutions."
+        "never seen the hidden evaluator or this benchmark's solutions."
     )
     print()
 
@@ -148,11 +124,6 @@ def run_manual_baseline(case_id: str) -> dict:
         workspace_repo=workspace.repo,
     )
 
-    confirm_relay(
-        trace,
-        "confirmed_initial_packet_relay",
-    )
-
     started = time.perf_counter()
     tool_actions = 0
     max_tool_actions = 16
@@ -196,15 +167,10 @@ def run_manual_baseline(case_id: str) -> dict:
             )
 
             print("\n" + "=" * 72)
-            print("VALIDATION RESULT TO COPY BACK TO AGENT")
+            print("TOOL / VALIDATION RESULT TO RETURN TO AGENT")
             print("=" * 72)
             print(feedback)
             print("=" * 72)
-
-            confirm_relay(
-                trace,
-                "confirmed_validation_feedback_relay",
-            )
 
             continue
 
@@ -214,7 +180,7 @@ def run_manual_baseline(case_id: str) -> dict:
         )
 
         if action["action"] == "finish":
-            summary = action["summary"]
+            summary = action.get("summary", "")
             elapsed = time.perf_counter() - started
 
             trace.record(
@@ -235,7 +201,6 @@ def run_manual_baseline(case_id: str) -> dict:
                 "tool_actions": tool_actions,
                 "wall_time_seconds": elapsed,
                 "summary": summary,
-                "transport": "human-relay-with-ack",
             }
 
             run_file = workspace.root / "run.json"
@@ -288,6 +253,14 @@ def run_manual_baseline(case_id: str) -> dict:
             tool_name=action["action"],
         )
 
+        trace.record(
+            "human_checkpoint",
+            {
+                "type": "relay_tool_result_to_agent",
+                "tool_action_number": tool_actions,
+            },
+        )
+
         print("\n" + "=" * 72)
         print("TOOL RESULT TO COPY BACK TO AGENT")
         print("=" * 72)
@@ -299,11 +272,6 @@ def run_manual_baseline(case_id: str) -> dict:
             )
         )
         print("=" * 72)
-
-        confirm_relay(
-            trace,
-            "confirmed_tool_result_relay",
-        )
 
     elapsed = time.perf_counter() - started
 

@@ -1,0 +1,32 @@
+{
+  "case_id": "PP-01",
+  "workspace": "D:\\patchproof_project_selection_benchmark_design\\.patchproof\\runs\\PP-01-manual-baseline-0148b852\\repo",
+  "success": false,
+  "gates": {
+    "visible_tests": true,
+    "hidden_acceptance": false,
+    "patch_policy": true,
+    "timeout": true
+  },
+  "policy": {
+    "passed": true,
+    "changed_files": [],
+    "forbidden_files": []
+  },
+  "visible": {
+    "passed": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_seconds": 2.5313660000101663,
+    "stdout": ".                                                                        [100%]\n1 passed in 1.08s\n",
+    "stderr": ""
+  },
+  "hidden": {
+    "passed": false,
+    "exit_code": 1,
+    "timed_out": false,
+    "duration_seconds": 2.3871746999793686,
+    "stdout": "FF.                                                                      [100%]\n================================== FAILURES ===================================\n_______________________ test_zero_quantity_is_rejected ________________________\n\n    def test_zero_quantity_is_rejected() -> None:\n        response = client.post(\n            \"/orders\",\n            json={\n                \"item\": \"keyboard\",\n                \"quantity\": 0,\n            },\n        )\n    \n>       assert response.status_code == 422\nE       assert 201 == 422\nE        +  where 201 = <Response [201 Created]>.status_code\n\n..\\..\\..\\..\\benchmark\\evaluator\\oracles\\PP-01\\test_hidden.py:18: AssertionError\n_____________________ test_negative_quantity_is_rejected ______________________\n\n    def test_negative_quantity_is_rejected() -> None:\n        response = client.post(\n            \"/orders\",\n            json={\n                \"item\": \"keyboard\",\n                \"quantity\": -3,\n            },\n        )\n    \n>       assert response.status_code == 422\nE       assert 201 == 422\nE        +  where 201 = <Response [201 Created]>.status_code\n\n..\\..\\..\\..\\benchmark\\evaluator\\oracles\\PP-01\\test_hidden.py:30: AssertionError\n=========================== short test summary info ===========================\nFAILED ..\\..\\..\\..\\benchmark\\evaluator\\oracles\\PP-01\\test_hidden.py::test_zero_quantity_is_rejected\nFAILED ..\\..\\..\\..\\benchmark\\evaluator\\oracles\\PP-01\\test_hidden.py::test_negative_quantity_is_rejected\n2 failed, 1 passed in 1.16s\n",
+    "stderr": ""
+  }
+}
