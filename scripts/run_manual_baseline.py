@@ -131,6 +131,13 @@ def run_manual_baseline(case_id: str) -> dict:
     while tool_actions < max_tool_actions:
         raw = read_multiline_action()
 
+        if not raw:
+            print(
+                "\nNo action received. "
+                "Paste one JSON action, then enter END."
+            )
+            continue
+
         trace.record(
             "human_checkpoint",
             {
@@ -174,7 +181,6 @@ def run_manual_baseline(case_id: str) -> dict:
 
         if action["action"] == "finish":
             summary = action.get("summary", "")
-
             elapsed = time.perf_counter() - started
 
             trace.record(
