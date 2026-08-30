@@ -1,0 +1,17 @@
+{
+  "case_id": "PP-12",
+  "run_id": "PP-12-codex-baseline-001",
+  "execution_mode": "codex-cli",
+  "model": "gpt-5.6-sol",
+  "official_candidate": true,
+  "success": true,
+  "visible_tests": true,
+  "hidden_acceptance": true,
+  "patch_policy": true,
+  "timeout": true,
+  "changed_files": [
+    "app/service.py",
+    "app/store.py"
+  ],
+  "failure_mode": null
+}
