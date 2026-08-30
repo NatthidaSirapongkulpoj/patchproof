@@ -1,0 +1,44 @@
+{
+  "case_id": "PP-10",
+  "workspace": "D:\\patchproof_project_selection_benchmark_design\\.patchproof\\runs\\PP-10-codex-baseline-42f1f2e3\\repo",
+  "success": true,
+  "gates": {
+    "visible_tests": true,
+    "hidden_acceptance": true,
+    "patch_policy": true,
+    "timeout": true
+  },
+  "policy": {
+    "passed": true,
+    "changed_files": [
+      "app/config.py"
+    ],
+    "forbidden_files": []
+  },
+  "visible": {
+    "passed": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_seconds": 4.882142800022848,
+    "stdout": ".                                                                        [100%]\n1 passed in 1.87s\n",
+    "stderr": ""
+  },
+  "hidden": {
+    "passed": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_seconds": 4.76931980001973,
+    "stdout": "....                                                                     [100%]\n4 passed in 2.01s\n",
+    "stderr": ""
+  },
+  "run_id": "PP-10-codex-baseline-42f1f2e3",
+  "benchmark_tag": "benchmark-v1",
+  "baseline_prompt_version": "codex-baseline-v1",
+  "execution_mode": "codex-cli",
+  "model": "gpt-5.6-sol",
+  "evaluator_process": {
+    "exit_code": 0,
+    "stdout": "{\n  \"case_id\": \"PP-10\",\n  \"workspace\": \"D:\\\\patchproof_project_selection_benchmark_design\\\\.patchproof\\\\runs\\\\PP-10-codex-baseline-42f1f2e3\\\\repo\",\n  \"success\": true,\n  \"gates\": {\n    \"visible_tests\": true,\n    \"hidden_acceptance\": true,\n    \"patch_policy\": true,\n    \"timeout\": true\n  },\n  \"policy\": {\n    \"passed\": true,\n    \"changed_files\": [\n      \"app/config.py\"\n    ],\n    \"forbidden_files\": []\n  },\n  \"visible\": {\n    \"passed\": true,\n    \"exit_code\": 0,\n    \"timed_out\": false,\n    \"duration_seconds\": 4.882142800022848,\n    \"stdout\": \".                                                                        [100%]\\n1 passed in 1.87s\\n\",\n    \"stderr\": \"\"\n  },\n  \"hidden\": {\n    \"passed\": true,\n    \"exit_code\": 0,\n    \"timed_out\": false,\n    \"duration_seconds\": 4.76931980001973,\n    \"stdout\": \"....                                                                     [100%]\\n4 passed in 2.01s\\n\",\n    \"stderr\": \"\"\n  }\n}\n",
+    "stderr": ""
+  }
+}

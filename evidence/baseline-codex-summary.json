@@ -1,0 +1,117 @@
+{
+  "evaluated_case_count": 12,
+  "successful_case_count": 12,
+  "failed_case_count": 0,
+  "vtsr_percentage": 100.0,
+  "missing_cases": [],
+  "per_case_gates": [
+    {
+      "case_id": "PP-01",
+      "run_id": "PP-01-codex-baseline-d1f3de09",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-02",
+      "run_id": "PP-02-codex-baseline-f4bda203",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-03",
+      "run_id": "PP-03-codex-baseline-c5781802",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-04",
+      "run_id": "PP-04-codex-baseline-92bffd7e",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-05",
+      "run_id": "PP-05-codex-baseline-891fd9d3",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-06",
+      "run_id": "PP-06-codex-baseline-f4925bcc",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-07",
+      "run_id": "PP-07-codex-baseline-d66861cb",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-08",
+      "run_id": "PP-08-codex-baseline-3557d333",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-09",
+      "run_id": "PP-09-codex-baseline-2b3eab7e",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-10",
+      "run_id": "PP-10-codex-baseline-42f1f2e3",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-11",
+      "run_id": "PP-11-codex-baseline-c208bd88",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    },
+    {
+      "case_id": "PP-12",
+      "run_id": "PP-12-codex-baseline-bf3393d7",
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true,
+      "success": true
+    }
+  ]
+}
