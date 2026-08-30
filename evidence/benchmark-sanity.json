@@ -1,0 +1,24 @@
+{
+  "source": "canonical_buggy_repositories",
+  "expected_gates": {
+    "visible_tests": true,
+    "hidden_acceptance": false,
+    "patch_policy": true,
+    "timeout": true,
+    "success": false
+  },
+  "cases": [
+    {"case_id": "PP-01", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-02", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-03", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-04", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-05", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-06", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-07", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-08", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-09", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-10", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-11", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false},
+    {"case_id": "PP-12", "visible_tests": true, "hidden_acceptance": false, "patch_policy": true, "timeout": true, "success": false}
+  ]
+}
