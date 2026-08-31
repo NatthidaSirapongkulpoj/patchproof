@@ -1,0 +1,86 @@
+{
+  "run_id": "PP-04-patchproof-final-27aca70b",
+  "case_id": "PP-04",
+  "benchmark_tag": "benchmark-v1",
+  "execution_mode": "codex-cli",
+  "model": "gpt-5.6-sol",
+  "workflow_version": "patchproof-final-v2",
+  "created_at": "2026-08-31T02:05:37.355670+00:00",
+  "status": "evaluated",
+  "evaluated_at": "2026-08-31T02:09:38.457861+00:00",
+  "success": true,
+  "gates": {
+    "correctness_pass": true,
+    "regression_pass": true,
+    "patch_policy_pass": true,
+    "independent_verification_pass": true,
+    "evidence_integrity_pass": true,
+    "review_artifact_complete": true,
+    "review_ready": true
+  },
+  "review_artifact": {
+    "root_cause": "app/main.py used request.get_json() with Flask's default parsing errors and then unconditionally called .get(\"name\") on the parsed value. Missing or incorrectly typed bodies could return Flask's non-contract 415 response, malformed JSON could return Flask's default 400 response, and valid non-object JSON could cause an attribute error and HTTP 500.",
+    "changed_files": [
+      "app/main.py",
+      "app/__pycache__/main.cpython-312.pyc"
+    ],
+    "behavior_fixed": "POST /profiles now parses JSON with silent failure handling, verifies that the parsed body is an object, and returns HTTP 400 with {\"error\":\"invalid JSON body\"} for missing, empty, malformed, null, array, string, number, boolean, and wrong-content-type bodies. Valid JSON objects retain the existing HTTP 201 profile response schema.",
+    "verification_performed": [
+      {
+        "evidence_id": "visible-tests-attempt-1",
+        "description": "Ran the visible pytest suite with output capture and cache disabled after the initial read-only-environment invocation lacked a writable temporary directory."
+      },
+      {
+        "evidence_id": "contract-check-attempt-1",
+        "description": "Used Flask's test client to exercise missing, empty, malformed, null, array, string, number, boolean, wrong-content-type, named-object, and empty-object request bodies; also inspected the production source against the pristine app."
+      }
+    ],
+    "verification_results": [
+      {
+        "evidence_id": "visible-tests-attempt-1",
+        "result": "Passed: 1 visible test. Valid profile creation returned HTTP 201 with the existing response schema."
+      },
+      {
+        "evidence_id": "contract-check-attempt-1",
+        "result": "Verifier passed the repair. Every invalid-body case returned HTTP 400 with exactly {\"error\":\"invalid JSON body\"}; valid named and empty objects returned HTTP 201 with the preserved schema."
+      }
+    ],
+    "remaining_risk": "Hidden evaluation has not yet run. The public contract does not specify additional validation for object bodies, so empty objects and objects without name continue to create profiles with a null name. A generated app/__pycache__/main.cpython-312.pyc file differs from the pristine app but has no production behavior impact.",
+    "human_review_action": "Review the minimal app/main.py change, confirm that preserving the existing behavior for empty objects or missing name is intended, and exclude the generated __pycache__ artifact from any submitted source change. Do not merge or deploy before hidden evaluation.",
+    "ready_for_human_review": true
+  },
+  "evaluator": {
+    "case_id": "PP-04",
+    "workspace": "D:\\patchproof_project_selection_benchmark_design\\.patchproof\\runs\\PP-04-patchproof-final-27aca70b\\repo",
+    "success": true,
+    "gates": {
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true
+    },
+    "policy": {
+      "passed": true,
+      "changed_files": [
+        "app/main.py"
+      ],
+      "forbidden_files": []
+    },
+    "visible": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_seconds": 2.691302999970503,
+      "stdout": ".                                                                        [100%]\n1 passed in 0.63s\n",
+      "stderr": ""
+    },
+    "hidden": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_seconds": 2.4802079000510275,
+      "stdout": "....                                                                     [100%]\n4 passed in 0.56s\n",
+      "stderr": ""
+    }
+  }
+}

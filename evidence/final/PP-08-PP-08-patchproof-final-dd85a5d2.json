@@ -1,0 +1,90 @@
+{
+  "run_id": "PP-08-patchproof-final-dd85a5d2",
+  "case_id": "PP-08",
+  "benchmark_tag": "benchmark-v1",
+  "execution_mode": "codex-cli",
+  "model": "gpt-5.6-sol",
+  "workflow_version": "patchproof-final-v2",
+  "created_at": "2026-08-31T02:20:54.650649+00:00",
+  "status": "evaluated",
+  "evaluated_at": "2026-08-31T02:24:16.245466+00:00",
+  "success": true,
+  "gates": {
+    "correctness_pass": true,
+    "regression_pass": true,
+    "patch_policy_pass": true,
+    "independent_verification_pass": true,
+    "evidence_integrity_pass": true,
+    "review_artifact_complete": true,
+    "review_ready": true
+  },
+  "review_artifact": {
+    "root_cause": "The /search handler used request.path as its cache key. Because request.path excludes the query string, requests with different q values shared the same cached response.",
+    "changed_files": [
+      "app/main.py",
+      "app/__pycache__/main.cpython-312.pyc"
+    ],
+    "behavior_fixed": "app/main.py now uses request.full_path as the cache key, causing query parameters to participate in cache identity while preserving query normalization, filtering, cache reset behavior, and the response schema.",
+    "verification_performed": [
+      {
+        "evidence_id": "visible-tests-attempt-1",
+        "description": "Ran the visible pytest suite with capture and cache-provider output disabled."
+      },
+      {
+        "evidence_id": "contract-check-attempt-1",
+        "description": "Ran a targeted Flask client contract check covering distinct apple and banana queries, a repeated apple query, response schema, normalization, and cache reset."
+      }
+    ],
+    "verification_results": [
+      {
+        "evidence_id": "visible-tests-attempt-1",
+        "result": "Passed: 1 visible test passed."
+      },
+      {
+        "evidence_id": "contract-check-attempt-1",
+        "result": "Passed: different queries returned independent correct results, the repeated query was stable, and schema, normalization, and cache reset behavior remained intact."
+      },
+      {
+        "evidence_id": "verifier-decision-attempt-1",
+        "result": "Final visible verifier decision was pass."
+      }
+    ],
+    "remaining_risk": "Hidden evaluation has not run. Canonicalization of semantically equivalent query strings and whether irrelevant parameters should share cache entries are unspecified. The generated app/__pycache__/main.cpython-312.pyc difference is incidental runtime output and should be excluded from any reviewed source change.",
+    "human_review_action": "Review the one-line app/main.py change from request.path to request.full_path, confirm full-query-string cache identity matches the intended policy, and exclude the generated __pycache__ artifact. Do not merge or deploy before hidden evaluation.",
+    "ready_for_human_review": true
+  },
+  "evaluator": {
+    "case_id": "PP-08",
+    "workspace": "D:\\patchproof_project_selection_benchmark_design\\.patchproof\\runs\\PP-08-patchproof-final-dd85a5d2\\repo",
+    "success": true,
+    "gates": {
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true
+    },
+    "policy": {
+      "passed": true,
+      "changed_files": [
+        "app/main.py"
+      ],
+      "forbidden_files": []
+    },
+    "visible": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_seconds": 2.5478922999463975,
+      "stdout": ".                                                                        [100%]\n1 passed in 0.55s\n",
+      "stderr": ""
+    },
+    "hidden": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_seconds": 2.398625399975572,
+      "stdout": "...                                                                      [100%]\n3 passed in 0.74s\n",
+      "stderr": ""
+    }
+  }
+}

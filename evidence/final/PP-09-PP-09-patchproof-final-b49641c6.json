@@ -1,0 +1,102 @@
+{
+  "run_id": "PP-09-patchproof-final-b49641c6",
+  "case_id": "PP-09",
+  "benchmark_tag": "benchmark-v1",
+  "execution_mode": "codex-cli",
+  "model": "gpt-5.6-sol",
+  "workflow_version": "patchproof-final-v2",
+  "created_at": "2026-08-31T02:24:17.020444+00:00",
+  "status": "evaluated",
+  "evaluated_at": "2026-08-31T04:58:26.235382+00:00",
+  "success": true,
+  "gates": {
+    "correctness_pass": true,
+    "regression_pass": true,
+    "patch_policy_pass": true,
+    "independent_verification_pass": true,
+    "evidence_integrity_pass": true,
+    "review_artifact_complete": true,
+    "review_ready": true
+  },
+  "review_artifact": {
+    "root_cause": "The duplicate-seat branch in app/main.py returned the same confirmation payload as the creation branch, so FastAPI applied the route's declared HTTP 201 status to an already reserved seat.",
+    "changed_files": [
+      "app/main.py",
+      "app/__pycache__/main.cpython-312.pyc"
+    ],
+    "behavior_fixed": "The duplicate-seat branch now raises HTTPException with status 409 and detail \"seat already reserved\". The route still returns HTTP 201 with the unchanged confirmation JSON for a new reservation.",
+    "verification_performed": [
+      {
+        "evidence_id": "app-diff-attempt-1",
+        "description": "Compared the repaired application with the pristine source and inspected the complete application diff."
+      },
+      {
+        "evidence_id": "visible-tests-attempt-1",
+        "description": "Ran the visible pytest suite with capture and cache disabled."
+      },
+      {
+        "evidence_id": "contract-check-attempt-1",
+        "description": "Ran focused TestClient assertions for initial conflict, successful creation, repeated conflict, exact response bodies, and reservation-state preservation."
+      },
+      {
+        "evidence_id": "verifier-decision-attempt-1",
+        "description": "Reviewed the final verifier decision and its findings."
+      }
+    ],
+    "verification_results": [
+      {
+        "evidence_id": "app-diff-attempt-1",
+        "result": "The only intentional source change imports HTTPException and raises it in the duplicate-seat branch; the HTTP 201 declaration and successful response path are unchanged."
+      },
+      {
+        "evidence_id": "visible-tests-attempt-1",
+        "result": "Visible tests passed: 1 passed in 2.51 seconds."
+      },
+      {
+        "evidence_id": "contract-check-attempt-1",
+        "result": "Focused assertions passed: reserved seats returned HTTP 409 with exact JSON, new reservations returned HTTP 201 with the unchanged JSON, and conflicts did not mutate reservation state."
+      },
+      {
+        "evidence_id": "verifier-decision-attempt-1",
+        "result": "The final verifier decision was pass with no retry feedback."
+      }
+    ],
+    "remaining_risk": "Hidden evaluation has not run. The visible suite contains only the successful-creation case, so conflict coverage comes from the focused verifier check. The changed bytecode file is incidental generated output and should not be included in a source commit. Concurrency safety of the in-memory check-then-add operation remains outside the reported scope.",
+    "human_review_action": "Review the minimal app/main.py diff, confirm the generated app/__pycache__/main.cpython-312.pyc file is excluded from any commit, and submit the patch for hidden evaluation without merging or deploying.",
+    "ready_for_human_review": true
+  },
+  "evaluator": {
+    "case_id": "PP-09",
+    "workspace": "D:\\patchproof_project_selection_benchmark_design\\.patchproof\\runs\\PP-09-patchproof-final-b49641c6\\repo",
+    "success": true,
+    "gates": {
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true
+    },
+    "policy": {
+      "passed": true,
+      "changed_files": [
+        "app/main.py"
+      ],
+      "forbidden_files": []
+    },
+    "visible": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_seconds": 3.744091300002765,
+      "stdout": ".                                                                        [100%]\n1 passed in 1.30s\n",
+      "stderr": ""
+    },
+    "hidden": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_seconds": 3.98440280003706,
+      "stdout": "...                                                                      [100%]\n3 passed in 1.65s\n",
+      "stderr": ""
+    }
+  }
+}

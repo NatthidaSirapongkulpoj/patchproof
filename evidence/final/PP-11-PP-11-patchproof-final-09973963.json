@@ -1,0 +1,90 @@
+{
+  "run_id": "PP-11-patchproof-final-09973963",
+  "case_id": "PP-11",
+  "benchmark_tag": "benchmark-v1",
+  "execution_mode": "codex-cli",
+  "model": "gpt-5.6-sol",
+  "workflow_version": "patchproof-final-v2",
+  "created_at": "2026-08-31T05:56:48.310096+00:00",
+  "status": "evaluated",
+  "evaluated_at": "2026-08-31T06:18:08.454586+00:00",
+  "success": true,
+  "gates": {
+    "correctness_pass": true,
+    "regression_pass": true,
+    "patch_policy_pass": true,
+    "independent_verification_pass": true,
+    "evidence_integrity_pass": true,
+    "review_artifact_complete": true,
+    "review_ready": true
+  },
+  "review_artifact": {
+    "root_cause": "In app/main.py, update_account mutated the stored account dictionary's display_name before validating notifications, so an HTTP 400 response could leave persistent partial state.",
+    "changed_files": [
+      "app/main.py",
+      "app/__pycache__/main.cpython-312.pyc"
+    ],
+    "behavior_fixed": "Notification frequency is now validated before either requested field is written. Invalid updates return HTTP 400 without changing stored fields; valid full and partial updates, missing-account HTTP 404 behavior, and successful response JSON remain unchanged.",
+    "verification_performed": [
+      {
+        "evidence_id": "visible-tests-attempt-1",
+        "description": "Ran the visible pytest suite with capture and cache disabled after the initial environment-related capture failure."
+      },
+      {
+        "evidence_id": "contract-check-attempt-1",
+        "description": "Inspected the actual diff against the pristine app and exercised atomic invalid updates, valid full and partial updates, successful response shape, and missing-account behavior with a Flask test client."
+      }
+    ],
+    "verification_results": [
+      {
+        "evidence_id": "visible-tests-attempt-1",
+        "description": "Visible suite passed: 1 test passed."
+      },
+      {
+        "evidence_id": "contract-check-attempt-1",
+        "description": "Focused contract checks passed, and the verifier concluded that the production source change is the smallest correct fix."
+      },
+      {
+        "evidence_id": "verifier-decision-attempt-1",
+        "description": "Independent verifier decision: pass."
+      }
+    ],
+    "remaining_risk": "A generated app/__pycache__/main.cpython-312.pyc binary also differs from the pristine app and should not be treated as a functional source change. Missing, malformed, non-object, or null JSON bodies were not part of the reported scope and remain unverified.",
+    "human_review_action": "Review the app/main.py validation-order diff, confirm the generated .pyc file should be excluded from the final change, and keep the change unmerged and undeployed pending hidden evaluation.",
+    "ready_for_human_review": true
+  },
+  "evaluator": {
+    "case_id": "PP-11",
+    "workspace": "D:\\patchproof_project_selection_benchmark_design\\.patchproof\\runs\\PP-11-patchproof-final-09973963\\repo",
+    "success": true,
+    "gates": {
+      "visible_tests": true,
+      "hidden_acceptance": true,
+      "patch_policy": true,
+      "timeout": true
+    },
+    "policy": {
+      "passed": true,
+      "changed_files": [
+        "app/main.py"
+      ],
+      "forbidden_files": []
+    },
+    "visible": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_seconds": 3.76850549998926,
+      "stdout": ".                                                                        [100%]\n1 passed in 1.08s\n",
+      "stderr": ""
+    },
+    "hidden": {
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_seconds": 3.315245700010564,
+      "stdout": "....                                                                     [100%]\n4 passed in 0.80s\n",
+      "stderr": ""
+    }
+  }
+}
