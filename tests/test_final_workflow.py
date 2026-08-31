@@ -26,6 +26,33 @@ def investigation(repo: Path) -> InvestigationArtifact:
     return InvestigationArtifact("wrong value", ["app/main.py"], ["value is two"], "change value")
 
 
+def test_passing_verifier_allows_empty_findings_with_evidence() -> None:
+    VerificationDecision(True, [], ["app/main.py"], ["visible-tests-attempt-1"], "").validate()
+
+
+def test_passing_verifier_rejects_empty_evidence() -> None:
+    with pytest.raises(ValueError, match="must reference verification evidence"):
+        VerificationDecision(True, [], ["app/main.py"], [], "").validate()
+
+
+def test_failed_verifier_rejects_unexplained_failure() -> None:
+    with pytest.raises(ValueError, match="actionable findings or retry feedback"):
+        VerificationDecision(False, [], ["app/main.py"], [], "").validate()
+
+
+@pytest.mark.parametrize(
+    ("findings", "feedback"), [(["wrong result"], ""), ([], "rerun boundary check")]
+)
+def test_failed_verifier_accepts_actionable_information(findings, feedback) -> None:
+    VerificationDecision(False, findings, ["app/main.py"], [], feedback).validate()
+
+
+@pytest.mark.parametrize("evidence_id", ["", "UPPER", "space id", "../record"])
+def test_verifier_rejects_malformed_evidence_ids(evidence_id: str) -> None:
+    with pytest.raises(ValueError, match="evidence IDs are malformed"):
+        VerificationDecision(True, [], ["app/main.py"], [evidence_id], "").validate()
+
+
 def test_verifier_failure_can_trigger_exactly_one_retry(tmp_path: Path) -> None:
     repo = make_repo(tmp_path)
     workflow = FinalWorkflow(RunMetadata("run", "PP-01"), repo, tmp_path / "trajectory.jsonl")

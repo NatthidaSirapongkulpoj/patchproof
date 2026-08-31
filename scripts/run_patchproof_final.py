@@ -12,6 +12,7 @@ from typing import Any
 from patchproof.final.evidence import (
     append_record,
     evidence_integrity_pass,
+    read_records,
     review_artifact_complete,
 )
 from patchproof.final.investigator import production_snapshot, validate_investigation
@@ -27,6 +28,7 @@ from patchproof.workspace import RUNS_ROOT
 
 MODEL = "gpt-5.6-sol"
 MAX_REPAIR_ATTEMPTS = 2
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def resolve_codex_executable() -> str:
@@ -157,6 +159,144 @@ def _read_prompt(metadata: dict[str, Any], role: str) -> str:
     return Path(metadata["prompts"][role]).read_text(encoding="utf-8")
 
 
+def _finish_with_evidence_reporter(
+    metadata: dict[str, Any], metadata_path: Path, run_root: Path, repo: Path,
+    trace: Path, artifacts: Path, investigation_path: Path, verifier_path: Path,
+    attempt: int, decision: VerificationDecision,
+) -> None:
+    review_path = artifacts / "evidence_reporter.json"
+    raw_review_path = artifacts / "evidence_reporter.raw.json"
+    reporter_prompt = _read_prompt(metadata, "evidence_reporter") + (
+        "\n\nUse the actual artifacts and trajectory supplied in this run. "
+        f"Investigation: {investigation_path}. Repair attempts: {attempt}. "
+        f"Final verifier artifact: {verifier_path}. Trajectory: {trace}. "
+        "Reference only evidence_id values that already occur in the trajectory."
+    )
+    reporter_before = production_snapshot(repo)
+    _record(trace, "evidence_reporter", attempt, "stage_started")
+    _invoke(trace, "evidence_reporter", attempt, repo, run_root, raw_review_path, reporter_prompt, False)
+    if production_snapshot(repo) != reporter_before:
+        raise RuntimeError("evidence reporter modified repository files")
+    raw_review_data = _load_object(raw_review_path, "evidence reporter")
+    review, review_data = _normalize_review_artifact(raw_review_data, trace, attempt)
+    if not review_artifact_complete(review_data) or review.ready_for_human_review:
+        raise RuntimeError("review artifact is incomplete or prematurely claims readiness")
+    if not evidence_integrity_pass(review_data, read_records(trace)):
+        raise RuntimeError("review artifact contains missing trajectory evidence references")
+    review_path.write_text(
+        json.dumps(review_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    _record(trace, "evidence_reporter", attempt, "artifact", output=json.dumps(review_data),
+            evidence_id="review-artifact")
+    _record(trace, "evidence_reporter", attempt, "stage_completed")
+    _record(trace, "workflow", attempt, "human_review_checkpoint",
+            output="No merge or deployment occurred; human review is required.", decision="required")
+    _record(trace, "workflow", attempt, "workflow_completed",
+            decision="verification_passed" if decision.passed else "verification_failed")
+    metadata["status"] = "workflow_completed"
+    metadata["verification_status"] = "passed" if decision.passed else "failed"
+    metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _is_generated_app_file(name: str) -> bool:
+    return "/__pycache__/" in f"/{name}" or name.endswith((".pyc", ".pyo"))
+
+
+def _feedback_items(decision: VerificationDecision) -> list[str]:
+    return ([decision.retry_feedback] if isinstance(decision.retry_feedback, str)
+            else list(decision.retry_feedback)) or list(decision.findings)
+
+
+def resume_after_verifier(run_id: str) -> VerificationDecision:
+    run_root = (RUNS_ROOT / run_id).resolve()
+    if run_root.parent != RUNS_ROOT.resolve():
+        raise ValueError("unsafe run ID")
+    metadata_path = run_root / "metadata.json"
+    metadata = _load_object(metadata_path, "metadata")
+    if metadata.get("run_id") != run_id or metadata.get("status") != "prepared":
+        raise ValueError("recovery requires an existing prepared run")
+    if metadata.get("workflow_version") != "patchproof-final-v2":
+        raise ValueError("only patchproof-final-v2 runs may use verifier recovery")
+    repo = Path(metadata["repo_path"]).resolve()
+    trace = Path(metadata["trace_path"])
+    artifacts = Path(metadata["artifact_root"])
+    pristine = Path(metadata["pristine_app_path"])
+    if repo != (run_root / "repo").resolve() or not trace.is_file():
+        raise ValueError("recovery requires the isolated repository and existing trajectory")
+    investigation_path = artifacts / "investigator.json"
+    repairs = sorted(artifacts.glob("repair_agent-attempt-*.txt"))
+    verifiers = sorted(artifacts.glob("verifier-attempt-*.json"))
+    if not investigation_path.is_file() or len(repairs) != 1 or len(verifiers) != 1:
+        raise ValueError("recovery requires exactly one investigation, repair, and verifier artifact")
+    if any((artifacts / name).exists() for name in (
+        "evidence_reporter.json", "evidence_reporter.raw.json"
+    )):
+        raise ValueError("evidence reporter already ran; recovery state is ambiguous")
+    records = read_records(trace)
+    if any(item.get("event_type") == "workflow_completed" for item in records):
+        raise ValueError("workflow already completed")
+    if any(item.get("role") == "evidence_reporter" for item in records):
+        raise ValueError("evidence reporter already ran; recovery state is ambiguous")
+    final_dir = PROJECT_ROOT / "evidence" / "final"
+    if any(final_dir.glob(f"*{run_id}*.json")) or any(
+        token in path.name.lower() for path in run_root.rglob("*.json")
+        for token in ("hidden", "evaluation-result", "evaluator-result")
+    ):
+        raise ValueError("hidden evaluation result already exists")
+    attempt = int(verifiers[0].stem.rsplit("-", 1)[-1])
+    decision_data = _load_object(verifiers[0], "verifier")
+    decision = _dataclass_from_dict(VerificationDecision, decision_data, "verifier decision")
+    decision.validate()
+    allowed = {f"visible-tests-attempt-{attempt}", f"contract-check-attempt-{attempt}"}
+    if not set(decision.verification_evidence_ids) <= allowed:
+        raise RuntimeError("verifier referenced non-deterministic or unavailable evidence")
+    repair_events = [item for item in records if item.get("role") == "repair_agent"
+                     and item.get("event_type") == "attempt_completed"]
+    if len(repair_events) != 1 or repair_events[0].get("attempt") != attempt:
+        raise ValueError("trajectory does not contain one matching completed repair")
+    try:
+        recorded_changed = sorted(json.loads(repair_events[0]["output"]))
+    except (TypeError, json.JSONDecodeError):
+        raise ValueError("recorded repair change set is ambiguous") from None
+    current_changed = _changed(production_snapshot(pristine), production_snapshot(repo / "app"))
+    current_changed = [f"app/{name}" for name in current_changed]
+    if current_changed != recorded_changed:
+        raise ValueError("current app tree does not match the recorded repair change set")
+    inspected = {name.replace("\\", "/").lstrip("./") for name in decision.inspected_files}
+    material_changed = {name for name in current_changed if not _is_generated_app_file(name)}
+    if not material_changed or not material_changed <= inspected:
+        raise ValueError("verifier did not inspect every material repaired app file")
+    verifier_mtime = verifiers[0].stat().st_mtime_ns
+    if any(path.stat().st_mtime_ns > verifier_mtime for path in (repo / "app").rglob("*") if path.is_file()):
+        raise ValueError("app tree contains files modified after verifier inspection")
+    audit = {
+        "reason": "recovery from a harness validation defect",
+        "repair_or_verifier_rerun": False,
+        "existing_observed_verifier_result_reused": True,
+        "hidden_evaluation_had_run": False,
+    }
+    _record(trace, "workflow", attempt, "recovery_started", output=json.dumps(audit))
+    _record(trace, "verifier", attempt, "artifact", output=json.dumps(decision_data),
+            evidence_id=f"contract-check-attempt-{attempt}")
+    _record(trace, "verifier", attempt, "verifier_decision_recovered",
+            output=json.dumps({
+                **audit,
+                "statement": (
+                    "Recovery from a harness validation defect; no repair or verifier rerun "
+                    "occurred; the existing observed verifier result was reused; hidden "
+                    "evaluation had not run."
+                ),
+                "verifier_artifact": str(verifiers[0]),
+            }),
+            decision="pass" if decision.passed else "fail")
+    _record(trace, "verifier", attempt, "decision", output=json.dumps(decision_data),
+            decision="pass" if decision.passed else "fail",
+            evidence_id=f"verifier-decision-attempt-{attempt}")
+    _finish_with_evidence_reporter(metadata, metadata_path, run_root, repo, trace, artifacts,
+                                   investigation_path, verifiers[0], attempt, decision)
+    return decision
+
+
 def run_final_workflow(run_id: str) -> VerificationDecision:
     run_root = (RUNS_ROOT / run_id).resolve()
     if run_root.parent != RUNS_ROOT.resolve():
@@ -230,53 +370,24 @@ def run_final_workflow(run_id: str) -> VerificationDecision:
                 evidence_id=f"verifier-decision-attempt-{attempt}")
         if decision.passed:
             break
-        for index, item in enumerate(decision.retry_feedback or decision.findings, 1):
+        for index, item in enumerate(_feedback_items(decision), 1):
             _record(trace, "verifier", attempt, "feedback", output=item,
                     evidence_id=f"verifier-feedback-attempt-{attempt}-{index}")
-        feedback = list(decision.retry_feedback or decision.findings)
+        feedback = _feedback_items(decision)
 
     assert decision is not None
-    review_path = artifacts / "evidence_reporter.json"
-    raw_review_path = artifacts / "evidence_reporter.raw.json"
-    reporter_prompt = _read_prompt(metadata, "evidence_reporter") + (
-        "\n\nUse the actual artifacts and trajectory supplied in this run. "
-        f"Investigation: {investigation_path}. Repair attempts: {attempt}. "
-        f"Final verifier artifact: {verifier_path}. Trajectory: {trace}. "
-        "Reference only evidence_id values that already occur in the trajectory."
-    )
-    reporter_before = production_snapshot(repo)
-    _record(trace, "evidence_reporter", attempt, "stage_started")
-    _invoke(trace, "evidence_reporter", attempt, repo, run_root, raw_review_path, reporter_prompt, False)
-    if production_snapshot(repo) != reporter_before:
-        raise RuntimeError("evidence reporter modified repository files")
-    raw_review_data = _load_object(raw_review_path, "evidence reporter")
-    review, review_data = _normalize_review_artifact(raw_review_data, trace, attempt)
-    if not review_artifact_complete(review_data) or review.ready_for_human_review:
-        raise RuntimeError("review artifact is incomplete or prematurely claims readiness")
-    from patchproof.final.evidence import read_records
-    if not evidence_integrity_pass(review_data, read_records(trace)):
-        raise RuntimeError("review artifact contains missing trajectory evidence references")
-    review_path.write_text(
-        json.dumps(review_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    _record(trace, "evidence_reporter", attempt, "artifact", output=json.dumps(review_data),
-            evidence_id="review-artifact")
-    _record(trace, "evidence_reporter", attempt, "stage_completed")
-    _record(trace, "workflow", attempt, "human_review_checkpoint",
-            output="No merge or deployment occurred; human review is required.", decision="required")
-    _record(trace, "workflow", attempt, "workflow_completed",
-            decision="verification_passed" if decision.passed else "verification_failed")
-    metadata["status"] = "workflow_completed"
-    metadata["verification_status"] = "passed" if decision.passed else "failed"
-    metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    _finish_with_evidence_reporter(metadata, metadata_path, run_root, repo, trace, artifacts,
+                                   investigation_path, verifier_path, attempt, decision)
     return decision
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--resume-after-verifier", action="store_true")
     args = parser.parse_args()
-    decision = run_final_workflow(args.run_id)
+    decision = (resume_after_verifier(args.run_id) if args.resume_after_verifier
+                else run_final_workflow(args.run_id))
     print(json.dumps({"run_id": args.run_id, "verification_passed": decision.passed}, indent=2))
 
 

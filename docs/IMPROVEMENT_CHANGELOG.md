@@ -1,5 +1,18 @@
 # Improvement changelog
 
+## Final-v2 verifier-validation shakedown
+
+Stage: Final-v2 verifier-validation shakedown
+
+What we tried:
+The PP-10 workflow completed Investigator, Repair Agent, and Independent Verifier. The verifier passed with concrete verification evidence but returned an empty findings list.
+
+Evidence:
+`PP-10-patchproof-final-fdf23080` produced a passing verifier artifact with evidence IDs `visible-tests-attempt-1` and `contract-check-attempt-1`. The harness then failed because `VerificationDecision.validate()` incorrectly required non-empty findings for every decision. No hidden evaluator ran.
+
+Decision / learning:
+Changed verifier validation so passing decisions require concrete evidence, not artificial findings. Added a fail-closed recovery path that can continue an interrupted run from an already-observed verifier artifact without rerunning investigation, repair, or verification. PP-10 has not been evaluated yet.
+
 ## Final-v1 integration shakedown
 
 Stage: Final-v1 integration shakedown

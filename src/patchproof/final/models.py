@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+import re
 
 
 def utc_now() -> str:
@@ -64,13 +65,39 @@ class VerificationDecision:
     findings: list[str]
     inspected_files: list[str]
     verification_evidence_ids: list[str]
-    retry_feedback: list[str] = field(default_factory=list)
+    retry_feedback: list[str] | str = field(default_factory=list)
 
     def validate(self) -> None:
-        if not self.findings:
-            raise ValueError("verifier decision must contain findings")
+        if not isinstance(self.passed, bool):
+            raise ValueError("verifier passed must be a boolean")
+        if not isinstance(self.findings, list) or any(
+            not isinstance(item, str) for item in self.findings
+        ):
+            raise ValueError("verifier findings must be a list of strings")
+        if not isinstance(self.inspected_files, list) or any(
+            not isinstance(item, str) or not item.strip() for item in self.inspected_files
+        ):
+            raise ValueError("verifier inspected_files must contain non-empty strings")
+        if not isinstance(self.verification_evidence_ids, list) or any(
+            not isinstance(item, str)
+            or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", item)
+            for item in self.verification_evidence_ids
+        ):
+            raise ValueError("verifier evidence IDs are malformed")
+        if not isinstance(self.retry_feedback, (list, str)) or (
+            isinstance(self.retry_feedback, list)
+            and any(not isinstance(item, str) for item in self.retry_feedback)
+        ):
+            raise ValueError("verifier retry_feedback must be text or a list of strings")
+        findings_present = any(item.strip() for item in self.findings)
+        feedback_items = (
+            [self.retry_feedback] if isinstance(self.retry_feedback, str) else self.retry_feedback
+        )
+        feedback_present = any(item.strip() for item in feedback_items)
         if self.passed and not self.verification_evidence_ids:
             raise ValueError("verifier pass must reference verification evidence")
+        if not self.passed and not (findings_present or feedback_present):
+            raise ValueError("verifier failure must contain actionable findings or retry feedback")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

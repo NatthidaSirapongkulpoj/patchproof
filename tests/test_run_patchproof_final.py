@@ -100,6 +100,103 @@ def setup_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcomes: list
     return root, counts
 
 
+def make_verifier_recovery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, dict]:
+    root = make_run(tmp_path)
+    repo = root / "repo"
+    pristine = root / "pristine-app"
+    pristine.mkdir()
+    (pristine / "main.py").write_text("value = 1\n", encoding="utf-8")
+    metadata_path = root / "metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["pristine_app_path"] = str(pristine)
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    artifacts = root / "artifacts"
+    (artifacts / "investigator.json").write_text("{}", encoding="utf-8")
+    (artifacts / "repair_agent-attempt-1.txt").write_text("done", encoding="utf-8")
+    (repo / "app" / "main.py").write_text("value = 2\n", encoding="utf-8")
+    trace = root / "trajectory.jsonl"
+    runner._record(trace, "investigator", 0, "artifact", output="{}",
+                   evidence_id="investigation-artifact")
+    runner._record(trace, "repair_agent", 1, "attempt_completed",
+                   output=json.dumps(["app/main.py"]), evidence_id="app-diff-attempt-1")
+    runner._record(trace, "verifier", 1, "command_result", output="{}", exit_code=0,
+                   evidence_id="visible-tests-attempt-1")
+    verifier = artifacts / "verifier-attempt-1.json"
+    verifier.write_text(json.dumps({
+        "passed": True, "findings": [], "inspected_files": ["app/main.py"],
+        "verification_evidence_ids": ["visible-tests-attempt-1", "contract-check-attempt-1"],
+        "retry_feedback": "",
+    }), encoding="utf-8")
+    calls = {role: 0 for role in ("investigator", "repair_agent", "verifier", "evidence_reporter", "hidden")}
+
+    def only_reporter(command, **kwargs):
+        prompt = kwargs["input"]
+        for role in ("investigator", "repair_agent", "verifier"):
+            if prompt.startswith(role):
+                calls[role] += 1
+                raise AssertionError(f"recovery invoked {role}")
+        calls["evidence_reporter"] += 1
+        artifact = Path(command[command.index("--output-last-message") + 1])
+        artifact.write_text(json.dumps({
+            "root_cause": "wrong value", "changed_files": ["app/main.py"],
+            "behavior_fixed": "value fixed",
+            "verification_performed": [{"evidence_id": "visible-tests-attempt-1"}],
+            "verification_results": [{"evidence_id": "verifier-decision-attempt-1"}],
+            "remaining_risk": "hidden checks pending", "human_review_action": "review diff",
+            "ready_for_human_review": False,
+        }), encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(runner, "RUNS_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "resolve_codex_executable", lambda: "resolved-codex")
+    monkeypatch.setattr(runner.subprocess, "run", only_reporter)
+    return root, calls
+
+
+def test_resume_after_verifier_reuses_artifact_and_only_runs_reporter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, calls = make_verifier_recovery(tmp_path, monkeypatch)
+    original = (root / "artifacts" / "verifier-attempt-1.json").read_bytes()
+    decision = runner.resume_after_verifier(root.name)
+    records = read_records(root / "trajectory.jsonl")
+    assert decision.passed
+    assert calls == {"investigator": 0, "repair_agent": 0, "verifier": 0,
+                     "evidence_reporter": 1, "hidden": 0}
+    assert (root / "artifacts" / "verifier-attempt-1.json").read_bytes() == original
+    assert any(item["event_type"] == "recovery_started" for item in records)
+    recovered = next(item for item in records if item["event_type"] == "verifier_decision_recovered")
+    assert "harness validation defect" in recovered["output"]
+    assert any(item["event_type"] == "human_review_checkpoint" for item in records)
+    assert any(item["event_type"] == "workflow_completed" for item in records)
+    assert json.loads((root / "metadata.json").read_text())["status"] == "workflow_completed"
+
+
+def test_resume_refuses_completed_workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root, _ = make_verifier_recovery(tmp_path, monkeypatch)
+    metadata_path = root / "metadata.json"
+    metadata = json.loads(metadata_path.read_text())
+    metadata["status"] = "workflow_completed"
+    metadata_path.write_text(json.dumps(metadata))
+    with pytest.raises(ValueError, match="prepared run"):
+        runner.resume_after_verifier(root.name)
+
+
+def test_resume_refuses_missing_verifier(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root, _ = make_verifier_recovery(tmp_path, monkeypatch)
+    (root / "artifacts" / "verifier-attempt-1.json").unlink()
+    with pytest.raises(ValueError, match="exactly one investigation, repair, and verifier"):
+        runner.resume_after_verifier(root.name)
+
+
+def test_resume_refuses_ambiguous_reporter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    root, _ = make_verifier_recovery(tmp_path, monkeypatch)
+    (root / "artifacts" / "evidence_reporter.raw.json").write_text("{}")
+    with pytest.raises(ValueError, match="already ran"):
+        runner.resume_after_verifier(root.name)
+
+
 def test_windows_prefers_codex_cmd(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
     monkeypatch.setattr(runner.os, "name", "nt")
