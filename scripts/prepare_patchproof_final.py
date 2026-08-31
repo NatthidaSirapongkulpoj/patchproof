@@ -84,7 +84,11 @@ def main() -> None:
     parser.add_argument("--case", required=True, choices=sorted(VALID_CASES))
     args = parser.parse_args()
     metadata = prepare_final_run(args.case)
-    print(json.dumps({"run_id": metadata["run_id"], "commands": metadata["commands"]}, indent=2))
+    print(json.dumps({
+        "run_id": metadata["run_id"],
+        "run_command": f"python scripts/run_patchproof_final.py --run-id {metadata['run_id']}",
+        "helpful_stage_commands": metadata["commands"],
+    }, indent=2))
 
 
 if __name__ == "__main__":

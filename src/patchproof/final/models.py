@@ -16,7 +16,7 @@ class RunMetadata:
     benchmark_tag: str = "benchmark-v1"
     execution_mode: str = "codex-cli"
     model: str = "gpt-5.6-sol"
-    workflow_version: str = "patchproof-final-v1"
+    workflow_version: str = "patchproof-final-v2"
     created_at: str = field(default_factory=utc_now)
     status: str = "prepared"
 
