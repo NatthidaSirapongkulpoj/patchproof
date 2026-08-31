@@ -37,3 +37,16 @@ Decision / learning:
 Changed the runner to resolve the platform-specific Codex executable explicitly, preferring `codex.cmd` on Windows while retaining `shell=False`. Process-creation failures are now persisted as `command_result` evidence before the workflow fails closed.
 
 This run is not an official final result.
+
+## Final-v2 UTF-8 stdin shakedown
+
+Stage: Final-v2 UTF-8 stdin shakedown
+
+What we tried:
+The launcher-fixed orchestrated runner successfully resolved `codex.cmd` and launched Codex, but the Investigator prompt was rejected because stdin was not encoded as valid UTF-8.
+
+Evidence:
+`PP-01-patchproof-final-b067bc38` remained `status=prepared`. Its trajectory contains Investigator `stage_started` and `command_result`. Codex exited 1 with an explicit invalid UTF-8 stdin error.
+
+Decision / learning:
+Made subprocess text encoding explicit as UTF-8 so Unicode issue text and prompts are transmitted deterministically across Windows environments. The run remains an integration failure, not an official final result.

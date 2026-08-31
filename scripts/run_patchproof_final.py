@@ -88,8 +88,8 @@ def _invoke(
     shown = subprocess.list2cmdline(command)
     try:
         process = subprocess.run(
-            command, input=prompt, text=True, capture_output=True, check=False, cwd=repo,
-            shell=False,
+            command, input=prompt, text=True, encoding="utf-8", errors="strict",
+            capture_output=True, check=False, cwd=repo, shell=False,
         )
     except OSError as exc:
         output = json.dumps({"exception": str(exc)}, ensure_ascii=False)

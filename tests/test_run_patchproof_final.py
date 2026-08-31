@@ -137,6 +137,58 @@ def test_command_uses_resolved_executable(tmp_path: Path, monkeypatch: pytest.Mo
     assert command[0] == r"C:\npm\codex.cmd"
 
 
+def test_invoke_sends_unicode_prompt_as_explicit_utf8_and_records_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace = tmp_path / "trajectory.jsonl"
+    artifact = tmp_path / "artifact.txt"
+    prompt = "Investigate the em dash — and non-ASCII text: café, ไทย"
+    observed = {}
+
+    def accept_unicode(command, **kwargs):
+        observed.update(kwargs)
+        assert kwargs["input"] == prompt
+        assert prompt.encode(kwargs["encoding"], kwargs["errors"]).decode("utf-8") == prompt
+        artifact.write_text("complete", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="résultat ไทย", stderr="คำเตือน")
+
+    monkeypatch.setattr(runner, "resolve_codex_executable", lambda: r"C:\npm\codex.cmd")
+    monkeypatch.setattr(runner.subprocess, "run", accept_unicode)
+    runner._invoke(trace, "investigator", 0, tmp_path, tmp_path, artifact, prompt, False)
+
+    assert observed["text"] is True
+    assert observed["encoding"] == "utf-8"
+    assert observed["errors"] == "strict"
+    assert observed["shell"] is False
+    result = next(item for item in read_records(trace) if item["event_type"] == "command_result")
+    output = json.loads(result["output"])
+    assert isinstance(output["stdout"], str) and output["stdout"] == "résultat ไทย"
+    assert isinstance(output["stderr"], str) and output["stderr"] == "คำเตือน"
+
+
+def test_nonzero_unicode_invocation_records_result_and_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace = tmp_path / "trajectory.jsonl"
+    artifact = tmp_path / "artifact.txt"
+
+    def fail(command, **kwargs):
+        assert kwargs["encoding"] == "utf-8"
+        return SimpleNamespace(returncode=7, stdout="partial — output", stderr="échec ไทย")
+
+    monkeypatch.setattr(runner, "resolve_codex_executable", lambda: r"C:\npm\codex.cmd")
+    monkeypatch.setattr(runner.subprocess, "run", fail)
+    with pytest.raises(RuntimeError, match="subprocess exited 7"):
+        runner._invoke(trace, "investigator", 0, tmp_path, tmp_path, artifact,
+                       "Unicode — café ไทย", False)
+
+    result = next(item for item in read_records(trace) if item["event_type"] == "command_result")
+    output = json.loads(result["output"])
+    assert result["exit_code"] == 7
+    assert output == {"stdout": "partial — output", "stderr": "échec ไทย"}
+    assert all(isinstance(value, str) for value in output.values())
+
+
 def test_process_creation_failure_is_recorded_without_completion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
