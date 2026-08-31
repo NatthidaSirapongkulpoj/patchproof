@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 from dataclasses import MISSING, fields
 from pathlib import Path
@@ -25,6 +27,17 @@ from patchproof.workspace import RUNS_ROOT
 
 MODEL = "gpt-5.6-sol"
 MAX_REPAIR_ATTEMPTS = 2
+
+
+def resolve_codex_executable() -> str:
+    """Return the platform-appropriate Codex executable path."""
+    candidates = ("codex.cmd", "codex") if os.name == "nt" else ("codex",)
+    for candidate in candidates:
+        executable = shutil.which(candidate)
+        if executable:
+            return executable
+    searched = " or ".join(candidates)
+    raise RuntimeError(f"Codex executable not found on PATH (looked for {searched})")
 
 
 def _record(trace: Path, role: str, attempt: int, event_type: str, **values: Any) -> None:
@@ -60,7 +73,7 @@ def _dataclass_from_dict(cls: type, value: dict[str, Any], label: str):
 
 def _command(repo: Path, run_root: Path, artifact: Path, writable: bool) -> list[str]:
     return [
-        "codex", "exec", "--model", MODEL, "--sandbox",
+        resolve_codex_executable(), "exec", "--model", MODEL, "--sandbox",
         "workspace-write" if writable else "read-only", "--skip-git-repo-check",
         "--add-dir", str(run_root), "--output-last-message", str(artifact),
         "--cd", str(repo), "-",
@@ -73,9 +86,16 @@ def _invoke(
 ) -> None:
     command = _command(repo, run_root, artifact, writable)
     shown = subprocess.list2cmdline(command)
-    process = subprocess.run(
-        command, input=prompt, text=True, capture_output=True, check=False, cwd=repo
-    )
+    try:
+        process = subprocess.run(
+            command, input=prompt, text=True, capture_output=True, check=False, cwd=repo,
+            shell=False,
+        )
+    except OSError as exc:
+        output = json.dumps({"exception": str(exc)}, ensure_ascii=False)
+        _record(trace, role, attempt, "command_result", command=shown, output=output,
+                exit_code=-1, evidence_id=evidence_id)
+        raise RuntimeError(f"{role} Codex subprocess could not be created: {exc}") from exc
     output = json.dumps({"stdout": process.stdout, "stderr": process.stderr}, ensure_ascii=False)
     _record(trace, role, attempt, "command_result", command=shown, output=output,
             exit_code=process.returncode, evidence_id=evidence_id)

@@ -91,8 +91,73 @@ def setup_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, outcomes: list
     root = make_run(tmp_path)
     fake, counts = fake_codex(root, outcomes, **kwargs)
     monkeypatch.setattr(runner, "RUNS_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "resolve_codex_executable", lambda: "resolved-codex")
     monkeypatch.setattr(runner.subprocess, "run", fake)
     return root, counts
+
+
+def test_windows_prefers_codex_cmd(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr(runner.os, "name", "nt")
+    monkeypatch.setattr(runner.shutil, "which", lambda name: calls.append(name) or {
+        "codex.cmd": r"C:\npm\codex.cmd", "codex": r"C:\npm\codex"
+    }.get(name))
+    assert runner.resolve_codex_executable() == r"C:\npm\codex.cmd"
+    assert calls == ["codex.cmd"]
+
+
+def test_windows_falls_back_to_codex(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr(runner.os, "name", "nt")
+    monkeypatch.setattr(runner.shutil, "which", lambda name: calls.append(name) or (
+        r"C:\npm\codex" if name == "codex" else None
+    ))
+    assert runner.resolve_codex_executable() == r"C:\npm\codex"
+    assert calls == ["codex.cmd", "codex"]
+
+
+def test_non_windows_resolves_codex(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr(runner.os, "name", "posix")
+    monkeypatch.setattr(runner.shutil, "which", lambda name: calls.append(name) or "/usr/bin/codex")
+    assert runner.resolve_codex_executable() == "/usr/bin/codex"
+    assert calls == ["codex"]
+
+
+def test_missing_codex_fails_clearly(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runner.os, "name", "nt")
+    monkeypatch.setattr(runner.shutil, "which", lambda name: None)
+    with pytest.raises(RuntimeError, match="Codex executable not found on PATH"):
+        runner.resolve_codex_executable()
+
+
+def test_command_uses_resolved_executable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runner, "resolve_codex_executable", lambda: r"C:\npm\codex.cmd")
+    command = runner._command(tmp_path, tmp_path / "run", tmp_path / "artifact", False)
+    assert command[0] == r"C:\npm\codex.cmd"
+
+
+def test_process_creation_failure_is_recorded_without_completion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = make_run(tmp_path)
+    monkeypatch.setattr(runner, "RUNS_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "resolve_codex_executable", lambda: r"C:\npm\codex.cmd")
+
+    def fail_creation(command, **kwargs):
+        raise FileNotFoundError(2, "The system cannot find the file specified")
+
+    monkeypatch.setattr(runner.subprocess, "run", fail_creation)
+    with pytest.raises(RuntimeError, match="subprocess could not be created"):
+        runner.run_final_workflow(root.name)
+
+    records = read_records(root / "trajectory.jsonl")
+    result = next(item for item in records if item["event_type"] == "command_result")
+    assert result["command"].startswith(r"C:\npm\codex.cmd")
+    assert "The system cannot find the file specified" in result["output"]
+    assert result["exit_code"] == -1
+    assert not any(item["event_type"] == "workflow_completed" for item in records)
+    assert json.loads((root / "metadata.json").read_text())["status"] == "prepared"
 
 
 def test_one_command_completes_trace_without_hidden_evaluator(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
