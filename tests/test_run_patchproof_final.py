@@ -8,6 +8,8 @@ import pytest
 
 import scripts.run_patchproof_final as runner
 from patchproof.final.evidence import evidence_integrity_pass, read_records
+from patchproof.final.investigator import normalize_investigation, validate_investigation
+from patchproof.final.models import InvestigationArtifact
 
 
 def make_run(tmp_path: Path, run_id: str = "PP-01-patchproof-final-test") -> Path:
@@ -152,6 +154,107 @@ def make_verifier_recovery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> t
     monkeypatch.setattr(runner, "resolve_codex_executable", lambda: "resolved-codex")
     monkeypatch.setattr(runner.subprocess, "run", only_reporter)
     return root, calls
+
+
+@pytest.mark.parametrize(
+    ("entries", "expected"),
+    [
+        (["app/main.py"], ["app/main.py"]),
+        ([{"path": "app/main.py", "relevance": "implementation"}], ["app/main.py"]),
+        (["app/main.py", {"path": "tests/test_main.py"}],
+         ["app/main.py", "tests/test_main.py"]),
+    ],
+)
+def test_investigation_relevant_files_normalize(entries: list, expected: list[str]) -> None:
+    raw = {"root_cause": "cause", "relevant_files": entries,
+           "behavioral_contracts": ["contract"], "proposed_repair": "repair",
+           "uncertainties": []}
+    before = json.loads(json.dumps(raw))
+    assert normalize_investigation(raw)["relevant_files"] == expected
+    assert raw == before
+
+
+@pytest.mark.parametrize(
+    ("entry", "message"),
+    [
+        ({"relevance": "missing"}, "missing path"),
+        ({"path": 7}, "must be a string"),
+        ({"path": "app/main.py", "relevance": 7}, "relevance must be a string"),
+        ({"path": "app/main.py", "extra": "no"}, "unsupported.*fields"),
+        ({"path": ""}, "must be non-empty"),
+        (7, "unsupported"),
+    ],
+)
+def test_investigation_relevant_files_reject_malformed(entry, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        normalize_investigation({"relevant_files": [entry]})
+
+
+@pytest.mark.parametrize("name", [r"C:\\outside.py", "../outside.py"])
+def test_investigation_validation_rejects_unsafe_paths(tmp_path: Path, name: str) -> None:
+    artifact = InvestigationArtifact("cause", [name], ["contract"], "repair")
+    with pytest.raises(ValueError, match="unsafe relevant file path"):
+        validate_investigation(artifact, tmp_path)
+
+
+def make_investigator_recovery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = make_run(tmp_path, "PP-11-patchproof-final-test")
+    artifacts = root / "artifacts"
+    raw = {"root_cause": "wrong value",
+           "relevant_files": [{"path": "app/main.py", "relevance": "implementation"}],
+           "behavioral_contracts": ["value changes"], "proposed_repair": "change it",
+           "uncertainties": []}
+    artifact = artifacts / "investigator.json"
+    artifact.write_text(json.dumps(raw), encoding="utf-8")
+    trace = root / "trajectory.jsonl"
+    runner._record(trace, "investigator", 0, "stage_started")
+    runner._record(trace, "investigator", 0, "command_result", output="{}", exit_code=0)
+    fake, counts = fake_codex(root, [True])
+    monkeypatch.setattr(runner, "RUNS_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(runner, "resolve_codex_executable", lambda: "resolved-codex")
+    monkeypatch.setattr(runner.subprocess, "run", fake)
+    return root, raw, counts
+
+
+def test_resume_after_investigator_reuses_raw_and_continues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, raw, counts = make_investigator_recovery(tmp_path, monkeypatch)
+    original = (root / "artifacts" / "investigator.json").read_bytes()
+    decision = runner.resume_after_investigator(root.name)
+    records = read_records(root / "trajectory.jsonl")
+    assert decision.passed and counts == {"repair_agent": 1, "verifier": 1}
+    assert (root / "artifacts" / "investigator.json").read_bytes() == original
+    canonical = json.loads((root / "artifacts" / "investigator.canonical.json").read_text())
+    assert canonical["relevant_files"] == ["app/main.py"] and raw["relevant_files"][0]["relevance"]
+    recovered = next(item for item in records
+                     if item["event_type"] == "investigator_artifact_recovered")
+    assert "schema-normalization harness defect" in recovered["output"]
+    assert sum(item["event_type"] == "command_result" and item["role"] == "investigator"
+               for item in records) == 1
+    assert not any("evaluator" in (item.get("command") or "") for item in records)
+
+
+@pytest.mark.parametrize("state", ["repair", "verifier", "completed", "missing"])
+def test_resume_after_investigator_refuses_unsafe_state(
+    state: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _, _ = make_investigator_recovery(tmp_path, monkeypatch)
+    if state == "repair":
+        runner._record(root / "trajectory.jsonl", "repair_agent", 1, "attempt_started")
+        message = "repair agent already started"
+    elif state == "verifier":
+        (root / "artifacts" / "verifier-attempt-1.json").write_text("{}")
+        message = "verifier already"
+    elif state == "completed":
+        runner._record(root / "trajectory.jsonl", "workflow", 1, "workflow_completed")
+        message = "workflow already completed"
+    else:
+        (root / "artifacts" / "investigator.json").unlink()
+        message = "artifact is missing"
+    with pytest.raises(ValueError, match=message):
+        runner.resume_after_investigator(root.name)
 
 
 def test_resume_after_verifier_reuses_artifact_and_only_runs_reporter(

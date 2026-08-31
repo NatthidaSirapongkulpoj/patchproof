@@ -1,5 +1,18 @@
 # Improvement changelog
 
+## Final-v2 investigator-schema shakedown
+
+Stage: Final-v2 investigator-schema shakedown
+
+What we tried:
+PP-11 Investigator completed successfully but returned relevant_files as structured objects containing path and relevance rather than plain strings.
+
+Evidence:
+`PP-11-patchproof-final-09973963` completed Investigator only. The harness then failed in `validate_investigation()` when `pathlib.Path` received a dict. No Repair Agent, Verifier, Evidence Reporter, or hidden evaluator ran.
+
+Decision / learning:
+Added strict investigator artifact normalization that accepts either repository-relative strings or structured path objects, canonicalizes them for downstream validation, and preserves the raw artifact. Added fail-closed recovery from a completed Investigator without rerunning it. PP-11 has not been evaluated yet.
+
 ## Final-v2 verifier-validation shakedown
 
 Stage: Final-v2 verifier-validation shakedown
