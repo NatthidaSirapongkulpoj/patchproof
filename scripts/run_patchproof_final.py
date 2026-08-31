@@ -71,6 +71,50 @@ def _dataclass_from_dict(cls: type, value: dict[str, Any], label: str):
         raise RuntimeError(f"invalid {label}: {exc}") from exc
 
 
+def _review_artifact_fields() -> tuple[str, ...]:
+    """Return the canonical top-level schema owned by ReviewArtifact."""
+    return tuple(item.name for item in fields(ReviewArtifact))
+
+
+def _normalize_review_artifact(
+    value: dict[str, Any], trace: Path, attempt: int,
+) -> tuple[ReviewArtifact, dict[str, Any]]:
+    """Discard only unknown top-level metadata, recording every discarded key."""
+    allowed = _review_artifact_fields()
+    unknown = sorted(set(value) - set(allowed))
+    canonical = {name: value[name] for name in allowed if name in value}
+    if unknown:
+        _record(
+            trace, "evidence_reporter", attempt, "review_artifact_normalized",
+            output=json.dumps({"discarded_top_level_fields": unknown}, ensure_ascii=False),
+        )
+
+    review = _dataclass_from_dict(ReviewArtifact, canonical, "review artifact")
+    string_fields = (
+        "root_cause", "behavior_fixed", "remaining_risk", "human_review_action",
+    )
+    if any(not isinstance(getattr(review, name), str) for name in string_fields):
+        raise RuntimeError("invalid review artifact: required text fields must be strings")
+    if not isinstance(review.changed_files, list) or any(
+        not isinstance(item, str) for item in review.changed_files
+    ):
+        raise RuntimeError("invalid review artifact: changed_files must be a list of strings")
+    for name in ("verification_performed", "verification_results"):
+        claims = getattr(review, name)
+        if not isinstance(claims, list) or any(
+            not isinstance(claim, dict)
+            or any(not isinstance(key, str) or not isinstance(item, str)
+                   for key, item in claim.items())
+            for claim in claims
+        ):
+            raise RuntimeError(
+                f"invalid review artifact: {name} must be a list of string-to-string objects"
+            )
+    if not isinstance(review.ready_for_human_review, bool):
+        raise RuntimeError("invalid review artifact: ready_for_human_review must be a boolean")
+    return review, canonical
+
+
 def _command(repo: Path, run_root: Path, artifact: Path, writable: bool) -> list[str]:
     return [
         resolve_codex_executable(), "exec", "--model", MODEL, "--sandbox",
@@ -193,6 +237,7 @@ def run_final_workflow(run_id: str) -> VerificationDecision:
 
     assert decision is not None
     review_path = artifacts / "evidence_reporter.json"
+    raw_review_path = artifacts / "evidence_reporter.raw.json"
     reporter_prompt = _read_prompt(metadata, "evidence_reporter") + (
         "\n\nUse the actual artifacts and trajectory supplied in this run. "
         f"Investigation: {investigation_path}. Repair attempts: {attempt}. "
@@ -201,16 +246,19 @@ def run_final_workflow(run_id: str) -> VerificationDecision:
     )
     reporter_before = production_snapshot(repo)
     _record(trace, "evidence_reporter", attempt, "stage_started")
-    _invoke(trace, "evidence_reporter", attempt, repo, run_root, review_path, reporter_prompt, False)
+    _invoke(trace, "evidence_reporter", attempt, repo, run_root, raw_review_path, reporter_prompt, False)
     if production_snapshot(repo) != reporter_before:
         raise RuntimeError("evidence reporter modified repository files")
-    review_data = _load_object(review_path, "evidence reporter")
-    review = _dataclass_from_dict(ReviewArtifact, review_data, "review artifact")
+    raw_review_data = _load_object(raw_review_path, "evidence reporter")
+    review, review_data = _normalize_review_artifact(raw_review_data, trace, attempt)
     if not review_artifact_complete(review_data) or review.ready_for_human_review:
         raise RuntimeError("review artifact is incomplete or prematurely claims readiness")
     from patchproof.final.evidence import read_records
     if not evidence_integrity_pass(review_data, read_records(trace)):
         raise RuntimeError("review artifact contains missing trajectory evidence references")
+    review_path.write_text(
+        json.dumps(review_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     _record(trace, "evidence_reporter", attempt, "artifact", output=json.dumps(review_data),
             evidence_id="review-artifact")
     _record(trace, "evidence_reporter", attempt, "stage_completed")

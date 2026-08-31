@@ -41,7 +41,8 @@ def make_run(tmp_path: Path, run_id: str = "PP-01-patchproof-final-test") -> Pat
 
 
 def fake_codex(root: Path, outcomes: list[bool], *, mutation: tuple[str, str] | None = None,
-               malformed_role: str | None = None, fail_role: str | None = None):
+               malformed_role: str | None = None, fail_role: str | None = None,
+               review_updates: dict | None = None, review_remove: str | None = None):
     counts = {"repair_agent": 0, "verifier": 0}
 
     def run(command, **kwargs):
@@ -79,6 +80,9 @@ def fake_codex(root: Path, outcomes: list[bool], *, mutation: tuple[str, str] | 
                      "verification_results": [{"result": "verifier", "evidence_id": f"verifier-decision-attempt-{attempt}"}],
                      "remaining_risk": "hidden checks pending", "human_review_action": "review the diff",
                      "ready_for_human_review": False}
+            value.update(review_updates or {})
+            if review_remove:
+                value.pop(review_remove, None)
         artifact.parent.mkdir(parents=True, exist_ok=True)
         artifact.write_text("not json" if role == malformed_role else
                             (value if isinstance(value, str) else json.dumps(value)), encoding="utf-8")
@@ -277,3 +281,80 @@ def test_review_references_resolve(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     review = json.loads((root / "artifacts" / "evidence_reporter.json").read_text())
     assert decision.passed is False
     assert evidence_integrity_pass(review, read_records(root / "trajectory.jsonl"))
+
+
+def test_exact_review_artifact_schema_is_accepted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = setup_runner(tmp_path, monkeypatch, [True])
+    runner.run_final_workflow(root.name)
+    review = json.loads((root / "artifacts" / "evidence_reporter.json").read_text())
+    assert tuple(review) == runner._review_artifact_fields()
+    assert not any(item["event_type"] == "review_artifact_normalized"
+                   for item in read_records(root / "trajectory.jsonl"))
+
+
+def test_unknown_review_fields_are_discarded_audited_and_not_trusted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    extras = {"case": "PP-01", "policy_result": {"passed": True}}
+    root, _ = setup_runner(tmp_path, monkeypatch, [True], review_updates=extras)
+    runner.run_final_workflow(root.name)
+
+    raw = json.loads((root / "artifacts" / "evidence_reporter.raw.json").read_text())
+    canonical = json.loads((root / "artifacts" / "evidence_reporter.json").read_text())
+    normalized = next(item for item in read_records(root / "trajectory.jsonl")
+                      if item["event_type"] == "review_artifact_normalized")
+    assert raw["policy_result"] == {"passed": True}
+    assert set(canonical) == set(runner._review_artifact_fields())
+    assert "policy_result" not in canonical and "case" not in canonical
+    assert json.loads(normalized["output"])["discarded_top_level_fields"] == [
+        "case", "policy_result"
+    ]
+    assert normalized["decision"] is None
+
+
+def test_missing_required_review_field_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = setup_runner(tmp_path, monkeypatch, [True], review_remove="root_cause")
+    with pytest.raises(RuntimeError, match=r"missing=\['root_cause'\]"):
+        runner.run_final_workflow(root.name)
+    assert not (root / "artifacts" / "evidence_reporter.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("updates", "message"),
+    [
+        ({"changed_files": "app/main.py"}, "changed_files must be a list"),
+        ({"verification_results": [{"evidence_id": 7}]}, "string-to-string objects"),
+        ({"ready_for_human_review": "false"}, "must be a boolean"),
+    ],
+)
+def test_malformed_required_review_field_fails_closed(
+    updates: dict, message: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = setup_runner(tmp_path, monkeypatch, [True], review_updates=updates)
+    with pytest.raises(RuntimeError, match=message):
+        runner.run_final_workflow(root.name)
+
+
+def test_unresolved_review_evidence_id_still_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = setup_runner(
+        tmp_path, monkeypatch, [True],
+        review_updates={"verification_results": [{"result": "claim", "evidence_id": "missing"}]},
+    )
+    with pytest.raises(RuntimeError, match="missing trajectory evidence"):
+        runner.run_final_workflow(root.name)
+
+
+def test_premature_review_readiness_still_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _ = setup_runner(
+        tmp_path, monkeypatch, [True], review_updates={"ready_for_human_review": True}
+    )
+    with pytest.raises(RuntimeError, match="prematurely claims readiness"):
+        runner.run_final_workflow(root.name)

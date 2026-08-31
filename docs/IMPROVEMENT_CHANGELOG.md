@@ -50,3 +50,18 @@ Evidence:
 
 Decision / learning:
 Made subprocess text encoding explicit as UTF-8 so Unicode issue text and prompts are transmitted deterministically across Windows environments. The run remains an integration failure, not an official final result.
+
+## Final-v2 review-schema shakedown
+
+Stage: Final-v2 review-schema shakedown
+
+What we tried:
+The launcher- and UTF-8-fixed orchestrated workflow successfully executed Investigator, Repair Agent, Independent Verifier, and Evidence Reporter for PP-01.
+
+Evidence:
+`PP-01-patchproof-final-cc3c44c2` reached review-artifact parsing, then failed closed because the model added two non-schema top-level fields: `case` and `policy_result`. Metadata remained `status=prepared` and no hidden evaluator was run.
+
+Decision / learning:
+Kept strict validation for required review-readiness evidence while separating benign model-added metadata from the canonical ReviewArtifact. Unknown fields are now auditable in the trajectory rather than crashing an otherwise valid workflow. Model-generated policy claims are never substituted for the frozen evaluator's policy gate.
+
+This run is an integration shakedown, not an official final result.
